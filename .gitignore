@@ -1,0 +1,6 @@
+.DS_Store
+
+.idea/*
+*.userprefs
+UserInterfaceState.xcuserstate
+*/xcuserdata/*

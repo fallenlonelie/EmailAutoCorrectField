@@ -31,11 +31,7 @@ public class EmailAutoCorrectionField: UITextField {
     ]
     
     private let label = UILabel(frame: .zero)
-    private weak var _delegate: UITextFieldDelegate? = nil
-    public override var delegate: UITextFieldDelegate? {
-        get { return self._delegate }
-        set { self._delegate = newValue }
-    }
+    
     public var candidateColor: UIColor = .placeholderText
     
     convenience init() {
@@ -53,7 +49,6 @@ public class EmailAutoCorrectionField: UITextField {
     }
     
     private func initView() {
-        super.delegate = self
         self.spellCheckingType  = .no
         self.autocorrectionType = .no
         self.keyboardType       = .emailAddress
@@ -65,6 +60,10 @@ public class EmailAutoCorrectionField: UITextField {
         self.label.backgroundColor          = .clear
         self.label.font                     = self.font
         self.label.isUserInteractionEnabled = false
+        
+        super.addTarget(self, action: #selector(self.editingChanged), for: .editingChanged)
+        super.addTarget(self, action: #selector(self.editingDidEnd),  for: .editingDidEnd)
+        super.addTarget(self, action: #selector(self.editingDidEnd),  for: .editingDidEndOnExit)
     }
 }
 
@@ -123,83 +122,26 @@ extension EmailAutoCorrectionField {
     }
 }
 
-extension EmailAutoCorrectionField: UITextFieldDelegate {
-    public func textFieldShouldBeginEditing(_ textField: UITextField) -> Bool {
-        return self.delegate?.textFieldShouldEndEditing?(textField) ?? true
-    }
-
-    public func textFieldDidBeginEditing(_ textField: UITextField) {
-        self.delegate?.textFieldDidBeginEditing?(textField)
-    }
-
-    public func textFieldShouldEndEditing(_ textField: UITextField) -> Bool {
-        return self.delegate?.textFieldShouldEndEditing?(textField) ?? true
-    }
-
-    public func textFieldDidEndEditing(_ textField: UITextField) {
-        self.correctToEmail()
-        self.delegate?.textFieldDidEndEditing?(textField)
-    }
-
-    public func textFieldDidEndEditing(_ textField: UITextField, reason: UITextField.DidEndEditingReason) {
-        self.correctToEmail()
-        self.delegate?.textFieldDidEndEditing?(textField, reason: reason)
-    }
-    
-    public func textField(_ textField: UITextField, shouldChangeCharactersIn range: NSRange, replacementString string: String) -> Bool {
-        let text           = textField.text?.nsString.replacingCharacters(in: range, with: string) ?? ""
-        let isInRangeAscii = string.unicodeScalars.filter({ $0.value > 0x7f }).isEmpty
-        
-        var result: Bool? {
-            self.delegate?.textField?(textField, shouldChangeCharactersIn: range, replacementString: string)
-        }
-        
-        switch string {
-        case "\n":
-            self.correctToEmail()
-            return result ?? true
-        case "\t":
-            self.correctToEmail()
-            return result ?? true
-        default:
-            break
-        }
-        
-        if isInRangeAscii {
-            textField.text = string.isBackspaceCharacter ? text.trim() : text
-            
-            if let index = text.firstIndex(of: "@") {
-                let location = text.distance(from: text.startIndex, to: index)
-                let host = text.subString(start: location + 1)
-                if let candidate = self.candidates.filter({ $0.prefix(host.count) == host }).first {
-                    self.showCandidate(currentText: text, candidate: candidate.subString(start: host.count))
-                } else {
-                    self.label.attributedText = .init(string: "")
-                }
+extension EmailAutoCorrectionField {
+    @objc
+    private func editingChanged(_ textField: UITextField) {
+        let text = textField.text ?? ""
+        if let index = text.firstIndex(of: "@") {
+            let location = text.distance(from: text.startIndex, to: index)
+            let host = text.subString(start: location + 1)
+            if let candidate = self.candidates.filter({ $0.prefix(host.count) == host }).first {
+                self.showCandidate(currentText: text, candidate: candidate.subString(start: host.count))
             } else {
                 self.label.attributedText = .init(string: "")
             }
-            
-            return (result ?? true) && false
         } else {
             self.label.attributedText = .init(string: "")
-            return result ?? true
         }
     }
     
-    @available(iOS 13.0, *)
-    public func textFieldDidChangeSelection(_ textField: UITextField) {
-        self.delegate?.textFieldDidChangeSelection?(textField)
-    }
-
-    
-    public func textFieldShouldClear(_ textField: UITextField) -> Bool {
-        return self.delegate?.textFieldShouldClear?(textField) ?? true
-    }
-
-    public func textFieldShouldReturn(_ textField: UITextField) -> Bool {
+    @objc
+    private func editingDidEnd(_ textField: UITextField) {
         self.correctToEmail()
-        return self.delegate?.textFieldShouldReturn?(textField) ?? true
     }
 }
 
